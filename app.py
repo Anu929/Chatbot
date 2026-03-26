@@ -2,7 +2,7 @@ import os
 import streamlit as st
 import google.generativeai as genai
 
-GEMINI_API_KEY = os.getenv("AIzaSyBXZS9VdjEY0Oi15hS-W1jcTPpxKquusVQ")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not GEMINI_API_KEY:
     st.error("API key not found!")
