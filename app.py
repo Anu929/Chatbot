@@ -4,7 +4,7 @@ import google.generativeai as genai
 from transformers import pipeline
 
 # Get API key from environment
-GEMINI_API_KEY = os.getenv(AIzaSyBXZS9VdjEY0Oi15hS-W1jcTPpxKquusVQ)
+GEMINI_API_KEY = os.getenv("AIzaSyBXZS9VdjEY0Oi15hS-W1jcTPpxKquusVQ")
 
 genai.configure(api_key=GEMINI_API_KEY)
 gemini_model = genai.GenerativeModel("gemini-pro")
