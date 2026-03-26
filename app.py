@@ -1,27 +1,44 @@
 import os
 import streamlit as st
 import google.generativeai as genai
-from transformers import pipeline
 
-# Get API key from environment
 GEMINI_API_KEY = os.getenv("AIzaSyBXZS9VdjEY0Oi15hS-W1jcTPpxKquusVQ")
 
+if not GEMINI_API_KEY:
+    st.error("API key not found!")
+    st.stop()
+
 genai.configure(api_key=GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel("gemini-pro")
+model = genai.GenerativeModel("gemini-pro")
 
-@st.cache_resource
-def load_model():
-    return pipeline("text-generation", model="distilgpt2")
+st.set_page_config(page_title="AI Chatbot", page_icon="🤖")
+st.title("🤖 Interactive AI Chatbot")
 
-model = load_model()
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-st.title("AI Chatbot")
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-user_input = st.text_input("Ask something:")
+user_input = st.chat_input("Type your message...")
 
 if user_input:
-    response = gemini_model.generate_content(user_input)
-    st.write("Gemini:", response.text)
+    with st.chat_message("user"):
+        st.markdown(user_input)
 
-    result = model(user_input, max_length=50)
-    st.write("Transformer:", result[0]["generated_text"])
+    st.session_state.messages.append({
+        "role": "user",
+        "content": user_input
+    })
+
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            response = model.generate_content(user_input)
+            bot_reply = response.text
+            st.markdown(bot_reply)
+
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": bot_reply
+    })
