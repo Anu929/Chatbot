@@ -4,20 +4,19 @@ import os
 from dotenv import load_dotenv
 import google.generativeai as genai
 
-# Updated LangChain imports
+# Updated imports
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain.chains import RetrievalQA
 
 # =========================
-# 🔐 API KEY SETUP
+# 🔐 API KEY
 # =========================
 load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 
 if not api_key:
-    st.error("Google API key not found!")
+    st.error("API Key not found")
     st.stop()
 
 genai.configure(api_key=api_key)
@@ -25,7 +24,7 @@ genai.configure(api_key=api_key)
 # =========================
 # 📄 PDF PATH
 # =========================
-PDF_PATH = "sample.pdf"   # put your PDF in same folder
+PDF_PATH = "sample.pdf"
 
 # =========================
 # 📥 READ PDF
@@ -38,44 +37,27 @@ def get_pdf_text(pdf_path):
     return text
 
 # =========================
-# ✂️ TEXT SPLITTING
+# ✂️ TEXT SPLIT
 # =========================
 def get_text_chunks(text):
-    text_splitter = RecursiveCharacterTextSplitter(
+    splitter = RecursiveCharacterTextSplitter(
         chunk_size=10000,
         chunk_overlap=1000
     )
-    return text_splitter.split_text(text)
+    return splitter.split_text(text)
 
 # =========================
 # 🧠 VECTOR STORE
 # =========================
-def get_vector_store(text_chunks):
+def create_vector_store(chunks):
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
-    vector_store.save_local("faiss_index")
+    db = FAISS.from_texts(chunks, embedding=embeddings)
+    db.save_local("faiss_index")
 
 # =========================
-# 🤖 QA CHAIN
+# 🤖 ANSWER FUNCTION
 # =========================
-def get_qa_chain(vector_store):
-    model = ChatGoogleGenerativeAI(
-        model="gemini-1.5-pro",
-        temperature=0.3
-    )
-
-    qa_chain = RetrievalQA.from_chain_type(
-        llm=model,
-        retriever=vector_store.as_retriever(),
-        chain_type="stuff"
-    )
-
-    return qa_chain
-
-# =========================
-# 💬 USER INPUT HANDLER
-# =========================
-def user_input(user_question):
+def get_answer(question):
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
 
     db = FAISS.load_local(
@@ -84,54 +66,69 @@ def user_input(user_question):
         allow_dangerous_deserialization=True
     )
 
-    chain = get_qa_chain(db)
+    docs = db.similarity_search(question)
 
-    response = chain.run(user_question)
-    return response
+    context = "\n".join([doc.page_content for doc in docs])
+
+    model = ChatGoogleGenerativeAI(
+        model="gemini-1.5-pro",
+        temperature=0.3
+    )
+
+    prompt = f"""
+    Answer the question using the context below.
+    If answer is not available, say "Not found in document".
+
+    Context:
+    {context}
+
+    Question:
+    {question}
+    """
+
+    response = model.invoke(prompt)
+    return response.content
 
 # =========================
-# 🎨 STREAMLIT UI
+# 🎨 UI
 # =========================
-st.set_page_config(page_title="AI PDF Chatbot", page_icon="🤖")
+st.set_page_config(page_title="PDF Chatbot", page_icon="🤖")
 
-st.title("📄 AI PDF Chatbot (Gemini + LangChain)")
-st.write("Ask questions from your PDF file")
+st.title("📄 AI PDF Chatbot")
+st.write("Ask questions from your PDF")
 
 # =========================
-# ⚡ CREATE VECTOR DB ONCE
+# CREATE VECTOR DB ONCE
 # =========================
 if not os.path.exists("faiss_index"):
     with st.spinner("Processing PDF..."):
-        raw_text = get_pdf_text(PDF_PATH)
-        text_chunks = get_text_chunks(raw_text)
-        get_vector_store(text_chunks)
-    st.success("PDF processed successfully!")
+        text = get_pdf_text(PDF_PATH)
+        chunks = get_text_chunks(text)
+        create_vector_store(chunks)
+    st.success("PDF Ready!")
 
 # =========================
-# 💾 CHAT HISTORY
+# CHAT HISTORY
 # =========================
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display old messages
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
 # =========================
-# 💬 CHAT INPUT
+# CHAT INPUT
 # =========================
-if prompt := st.chat_input("Ask something from the PDF..."):
+if prompt := st.chat_input("Ask something..."):
 
-    # User message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Assistant response
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            response = user_input(prompt)
-            st.markdown(response)
+            answer = get_answer(prompt)
+            st.markdown(answer)
 
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    st.session_state.messages.append({"role": "assistant", "content": answer})
