@@ -1,4 +1,7 @@
 streamlit
 google-generativeai
-transformers
-torch
+python-dotenv
+langchain
+PyPDF2
+faiss-cpu
+langchain_google_genai
